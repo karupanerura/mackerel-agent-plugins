@@ -22,10 +22,11 @@ import (
 
 // AccesslogPlugin mackerel plugin
 type AccesslogPlugin struct {
-	prefix    string
-	file      string
-	posFile   string
-	noPosFile bool
+	prefix     string
+	ltsvFields []string
+	file       string
+	posFile    string
+	noPosFile  bool
 }
 
 // MetricKeyPrefix interface for PluginWithPrefix
@@ -143,7 +144,8 @@ func (p *AccesslogPlugin) FetchMetrics() (map[string]float64, error) {
 		}
 		line := bb.String()
 		if psr == nil {
-			psr, l, err = axslogparser.GuessParser(line)
+			g := &axslogparser.ParserGuesser{LtsvGuessFields: p.ltsvFields}
+			psr, l, err = g.GuessParser(line)
 		} else {
 			l, err = psr.Parse(line)
 		}
@@ -182,9 +184,10 @@ func (p *AccesslogPlugin) FetchMetrics() (map[string]float64, error) {
 // Do the plugin
 func Do() {
 	var (
-		optPrefix    = flag.String("metric-key-prefix", "", "Metric key prefix")
-		optPosFile   = flag.String("posfile", "", "(not necessary to specify it in the usual use case) posfile")
-		optNoPosFile = flag.Bool("no-posfile", false, "no position file")
+		optPrefix     = flag.String("metric-key-prefix", "", "Metric key prefix")
+		optPosFile    = flag.String("posfile", "", "(not necessary to specify it in the usual use case) posfile")
+		optNoPosFile  = flag.Bool("no-posfile", false, "no position file")
+		optLtsvFields = flag.String("ltsv-fields", "", "Log LTSV fields for format guessing (spareted by comma)")
 	)
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage: %s [OPTION] /path/to/access.log\n", os.Args[0])
@@ -195,10 +198,17 @@ func Do() {
 		flag.Usage()
 		os.Exit(1)
 	}
+
+	ltsvFields := "time,host"
+	if optLtsvFields != nil {
+		ltsvFields = *optLtsvFields
+	}
+
 	mp.NewMackerelPlugin(&AccesslogPlugin{
-		prefix:    *optPrefix,
-		file:      flag.Args()[0],
-		posFile:   *optPosFile,
-		noPosFile: *optNoPosFile,
+		prefix:     *optPrefix,
+		ltsvFields: string.Split(ltsvFields, ","),
+		file:       flag.Args()[0],
+		posFile:    *optPosFile,
+		noPosFile:  *optNoPosFile,
 	}).Run()
 }
